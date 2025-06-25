@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real-time Commenting System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .comment-box {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        form {
+            margin-top: 20px;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Commenting Service</h1>
+    <div id="comments"></div>
+    <form id="commentForm">
+        <input type="text" id="post_id" placeholder="Post ID" required>
+        <input type="text" id="user_id" placeholder="User ID" required>
+        <input type="text" id="content" placeholder="Comment" required>
+        <button type="submit">Add Comment</button>
+    </form>
+    <script type="text/javascript">
+        // const commentsDiv = document.getElementById('comments');
+        // const commentForm = document.getElementById('commentForm');
+        const postIdInput = document.getElementById('post_id');
+        const userIdInput = document.getElementById('user_id');
+        const contentInput = document.getElementById('content');
+        let eventSource = null;
+
+        // Load existing comments when page loads
+        async function loadComments() {
+            const postId = postIdInput.value;
+            if (!postId) return;
+
+            try {
+                const response = await fetch(`http://localhost:8000/comments/${postId}`);
+                const comments = await response.json();
+                displayComments(comments);
+                connectToSSE(postId); // Start SSE connection after loading initial comments
+            } catch (error) {
+                console.error('Error loading comments:', error);
+            }
+        }
+
+        // Display comments in the page
+        function displayComments(comments) {
+            commentsDiv.innerHTML = comments.map(comment => `
+                <div class="comment-box">
+                    <strong>${comment.user_id}</strong>: ${comment.content}
+                    <br>
+                    <small>${new Date(comment.timestamp).toLocaleString()}</small>
+                </div>
+            `).join('');
+            commentsDiv.dataset.comments = JSON.stringify(comments);
+        }
+
+        // Handle SSE connection
+        function connectToSSE(postId) {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource(`http://localhost:8000/comments/stream/${postId}`);
+            
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.event === 'new_comment') {
+                        loadComments();
+                    }
+                } catch (error) {
+                    console.error('Error parsing SSE data:', error);
+                }
+            };
+            
+            eventSource.onerror = function() {
+                console.error('SSE connection error');
+                eventSource.close();
+                // Try to reconnect after 5 seconds
+                setTimeout(() => connectToSSE(postId), 5000);
+            };
+        }
+
+        // Initialize page
+        loadComments();
+
+        // Load comments when page loads if postId is set
+        window.addEventListener('load', () => {
+            const postId = postIdInput.value;
+            if (postId) {
+                connectToSSE(postId);
+                loadComments();
+            }
+        });
+    </script>
+</body>
+</html>
+<script>
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.event === 'new_comment') {
+                    loadComments();
+                }
+            };
+            // Handle form submission
+            commentForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const postId = postIdInput.value;
+                const userId = userIdInput.value;
+                const content = contentInput.value;
+
+                if (!postId || !userId || !content) {
+                    alert('Please fill in all fields');
+                    return;
+                }
+
+            try {
+                const response = await fetch('http://localhost:8000/comments', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        post_id: post_id,
+                        user_id: user_id,
+                        content: content
+                    })
+                });
+
+                if (response.ok) {
+                    contentInput.value = '';
+                    loadComments();
+                } else {
+                    console.error('Error posting comment');
+                }
+            } catch (error) {
+                console.error('Error posting comment:', error);
+            }
+        });
+
+        // Initialize SSE when postId is set
+        postIdInput.addEventListener('input', () => {
+            const postId = postIdInput.value;
+            if (postId) {
+                connectToSSE(postId);
+                loadComments();
+            }
+        });
+    </script>
+</body>
+</html>
